@@ -94,6 +94,8 @@ def run(conn, industries: list[str], limit: int, rotator: KeyRotator) -> int:
                 print(f"  [Apollo] Error {status}")
                 break
 
+            rotator.on_success(key_id)
+
             orgs = data.get("organizations") or []
             if not orgs:
                 print(f"  [Apollo] Sin más resultados en página {page}")

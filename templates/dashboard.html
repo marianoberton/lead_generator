@@ -139,6 +139,67 @@
   </div>
 </div>
 
+<!-- Enrichment pipeline -->
+<div class="bg-white rounded-2xl border border-slate-200/60 p-6 shadow-sm mb-7">
+  <div class="flex items-center justify-between mb-5">
+    <h3 class="text-[13px] font-semibold text-slate-700">Enrichment Pipeline</h3>
+    <a href="/jobs" class="text-[12px] text-brand-600 hover:text-brand-700 font-medium">Ejecutar waterfall &rarr;</a>
+  </div>
+  <div class="flex items-stretch gap-2">
+    {% set pipeline = [
+      ('Crawling', 'crawl', 'slate', 'ilimitado'),
+      ('Hunter', 'hunter', 'orange', ''),
+      ('Snov', 'snov', 'emerald', ''),
+      ('Skrapp', 'skrapp', 'blue', ''),
+      ('Tomba', 'tomba', 'rose', ''),
+      ('Norbert', 'norbert', 'cyan', ''),
+    ] %}
+    {% for name, svc, color, note in pipeline %}
+    {% set es = enrichment_stats.get(svc, {}) %}
+    {% set found = es.get('found', 0) %}
+    {% set not_found = es.get('not_found', 0) %}
+    <div class="flex-1 relative">
+      <div class="bg-{{ color }}-50 border border-{{ color }}-100 rounded-xl p-3.5 h-full">
+        <p class="text-[12px] font-semibold text-{{ color }}-700 mb-2">{{ name }}</p>
+        <div class="space-y-1">
+          <div class="flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
+            <span class="text-[11px] text-slate-600"><span class="font-semibold">{{ found }}</span> encontrados</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 bg-slate-300 rounded-full"></span>
+            <span class="text-[11px] text-slate-400"><span class="font-medium">{{ not_found }}</span> sin resultado</span>
+          </div>
+        </div>
+        {% if note %}
+        <p class="text-[10px] text-{{ color }}-500 mt-1.5">{{ note }}</p>
+        {% endif %}
+      </div>
+      {% if not loop.last %}
+      <div class="absolute -right-2 top-1/2 -translate-y-1/2 z-10">
+        <svg class="w-3 h-3 text-slate-300" fill="currentColor" viewBox="0 0 24 24"><path d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Keys capacity bar -->
+  {% if keys_summary %}
+  <div class="mt-4 pt-4 border-t border-slate-100 flex flex-wrap gap-3">
+    {% for svc, info in keys_summary.items() %}
+    {% if info.limit > 0 %}
+    {% set remaining = info.limit - info.used %}
+    <span class="text-[11px] text-slate-500">
+      <span class="font-medium text-slate-600">{{ info.label }}</span>
+      <span class="{% if remaining <= 0 %}text-red-500{% elif remaining < info.limit * 0.2 %}text-amber-500{% else %}text-emerald-600{% endif %} font-semibold">{{ remaining }}/{{ info.limit }}</span>
+    </span>
+    {% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+
 <!-- Quick actions + recent leads -->
 <div class="grid grid-cols-3 gap-5">
 

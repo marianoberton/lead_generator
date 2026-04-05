@@ -2,7 +2,16 @@
 
 {% block title %}API Keys — FOMO Leads{% endblock %}
 {% block page_title %}API Keys{% endblock %}
-{% block page_subtitle %}Gestion de claves para Apollo, Google Places y Hunter{% endblock %}
+{% block page_subtitle %}Gestion de claves para todos los servicios de enrichment{% endblock %}
+
+{% block header_actions %}
+<form method="POST" action="/keys/reset-quotas" onsubmit="return confirm('Resetear todas las quotas mensuales?')">
+  <button type="submit" class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 text-[13px] font-medium rounded-lg hover:bg-slate-50 transition-all shadow-sm">
+    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182"/></svg>
+    Reset quotas mensuales
+  </button>
+</form>
+{% endblock %}
 
 {% block content %}
 
@@ -10,6 +19,34 @@
 <div class="mb-5 p-4 rounded-xl border text-[13px] font-medium
   {% if 'Error' in message %}bg-red-50 border-red-200 text-red-700{% else %}bg-emerald-50 border-emerald-200 text-emerald-700{% endif %}">
   {{ message }}
+</div>
+{% endif %}
+
+<!-- Service summary cards -->
+{% if service_summary %}
+<div class="grid grid-cols-4 gap-4 mb-5">
+  {% for svc, info in service_summary.items() %}
+  {% set remaining = info.limit - info.used if info.limit > 0 else -1 %}
+  {% set pct = (info.used / info.limit * 100) | int if info.limit > 0 else 0 %}
+  <div class="bg-white rounded-2xl border border-slate-200/60 p-4 shadow-sm">
+    <div class="flex items-center justify-between mb-2">
+      <span class="text-[12px] font-semibold text-slate-700">{{ info.label }}</span>
+      <span class="text-[11px] text-slate-400">{{ info.active }}/{{ info.total }} activas</span>
+    </div>
+    {% if info.limit > 0 %}
+    <div class="flex items-baseline gap-1.5 mb-2">
+      <span class="text-xl font-bold {% if pct >= 90 %}text-red-500{% elif pct >= 70 %}text-amber-500{% else %}text-emerald-600{% endif %}">{{ remaining }}</span>
+      <span class="text-[11px] text-slate-400">creditos restantes de {{ info.limit }}</span>
+    </div>
+    <div class="bg-slate-100 rounded-full h-1.5 overflow-hidden">
+      <div class="h-full rounded-full transition-all {% if pct >= 90 %}bg-red-500{% elif pct >= 70 %}bg-amber-500{% else %}bg-emerald-500{% endif %}"
+           style="width: {{ pct }}%"></div>
+    </div>
+    {% else %}
+    <p class="text-[11px] text-slate-400">{{ info.used }} requests usados</p>
+    {% endif %}
+  </div>
+  {% endfor %}
 </div>
 {% endif %}
 
@@ -25,72 +62,102 @@
       <table class="w-full">
         <thead>
           <tr class="border-b border-slate-100 bg-slate-50/50">
-            <th class="text-left px-6 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Servicio</th>
-            <th class="text-left px-6 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Key</th>
-            <th class="text-left px-6 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Estado</th>
-            <th class="text-left px-6 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Error</th>
-            <th class="px-6 py-3"></th>
+            <th class="text-left px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Servicio</th>
+            <th class="text-left px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Cuenta</th>
+            <th class="text-left px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Key</th>
+            <th class="text-left px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Usados/Limite</th>
+            <th class="text-left px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Estado</th>
+            <th class="text-left px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Ultimo uso</th>
+            <th class="px-5 py-3"></th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-50">
           {% for key in keys %}
+          {% set used = key.requests_month or 0 %}
+          {% set limit = key.monthly_limit or 0 %}
+          {% set pct = (used / limit * 100) | int if limit > 0 else 0 %}
           <tr class="hover:bg-slate-50/50 transition-colors">
-            <td class="px-6 py-4">
-              {% if key.service == 'apollo' %}
-              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-50 text-violet-700 text-[11px] font-medium">
-                <span class="w-1.5 h-1.5 bg-violet-500 rounded-full"></span>Apollo
+            <td class="px-5 py-3.5">
+              {% set svc_colors = {'apollo': 'violet', 'google_places': 'sky', 'hunter': 'orange', 'snov': 'emerald', 'skrapp': 'blue', 'tomba': 'rose', 'norbert': 'cyan', 'apify': 'amber'} %}
+              {% set color = svc_colors.get(key.service, 'slate') %}
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-{{ color }}-50 text-{{ color }}-700 text-[11px] font-medium">
+                <span class="w-1.5 h-1.5 bg-{{ color }}-500 rounded-full"></span>
+                {{ service_limits.get(key.service, {}).get('label', key.service) }}
               </span>
-              {% elif key.service == 'google_places' %}
-              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-50 text-sky-700 text-[11px] font-medium">
-                <span class="w-1.5 h-1.5 bg-sky-500 rounded-full"></span>Google Places
-              </span>
-              {% elif key.service == 'hunter' %}
-              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-orange-50 text-orange-700 text-[11px] font-medium">
-                <span class="w-1.5 h-1.5 bg-orange-500 rounded-full"></span>Hunter.io
-              </span>
+            </td>
+            <td class="px-5 py-3.5">
+              <div>
+                <p class="text-[12px] text-slate-700 font-medium">{{ key.account_name or '—' }}</p>
+                <p class="text-[11px] text-slate-400">{{ key.account_email or 'sin email' }}</p>
+              </div>
+            </td>
+            <td class="px-5 py-3.5">
+              <code class="text-[11px] text-slate-500 terminal-font bg-slate-100 px-2 py-0.5 rounded">{{ key.key_value[:6] }}...{{ key.key_value[-3:] }}</code>
+            </td>
+            <td class="px-5 py-3.5">
+              {% if limit > 0 %}
+              <div class="w-20">
+                <div class="flex justify-between mb-0.5">
+                  <span class="text-[11px] font-semibold {% if pct >= 90 %}text-red-600{% elif pct >= 70 %}text-amber-600{% else %}text-slate-700{% endif %}">{{ used }}/{{ limit }}</span>
+                </div>
+                <div class="bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                  <div class="h-full rounded-full {% if pct >= 90 %}bg-red-500{% elif pct >= 70 %}bg-amber-500{% else %}bg-emerald-500{% endif %}"
+                       style="width: {{ [pct, 100] | min }}%"></div>
+                </div>
+              </div>
               {% else %}
-              <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[11px] font-medium">{{ key.service }}</span>
+              <span class="text-[11px] text-slate-400">{{ used }}/--</span>
               {% endif %}
             </td>
-            <td class="px-6 py-4">
-              <code class="text-[12px] text-slate-600 terminal-font bg-slate-100 px-2 py-1 rounded-md">{{ key.key_value[:8] }}...{{ key.key_value[-4:] }}</code>
-            </td>
-            <td class="px-6 py-4">
-              {% if key.active %}
-              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[11px] font-medium">
-                <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>activa
+            <td class="px-5 py-3.5">
+              {% if not key.active %}
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-50 text-red-600 text-[11px] font-medium">
+                <span class="w-1.5 h-1.5 bg-red-400 rounded-full"></span>
+                {{ key.error_reason or 'OFF' }}
+              </span>
+              {% elif limit > 0 and used >= limit %}
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 text-[11px] font-medium">
+                <span class="w-1.5 h-1.5 bg-amber-400 rounded-full"></span>FULL
               </span>
               {% else %}
-              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-red-50 text-red-600 text-[11px] font-medium">
-                <span class="w-1.5 h-1.5 bg-red-400 rounded-full"></span>deshabilitada
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[11px] font-medium">
+                <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>OK
               </span>
               {% endif %}
             </td>
-            <td class="px-6 py-4 text-[12px] text-red-500 terminal-font">{{ key.error_reason or '—' }}</td>
-            <td class="px-6 py-4">
-              <div class="flex items-center gap-2 justify-end">
+            <td class="px-5 py-3.5 text-[11px] text-slate-400">
+              {{ (key.last_used_at or 'nunca')[:16] }}
+            </td>
+            <td class="px-5 py-3.5">
+              <div class="flex items-center gap-1.5 justify-end">
                 {% if key.active %}
                 <form method="POST" action="/keys/{{ key.id }}/disable">
-                  <button type="submit" class="px-3 py-1.5 rounded-lg text-[11px] font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-colors">Deshabilitar</button>
+                  <button type="submit" class="px-2 py-1 rounded-md text-[11px] font-medium text-red-600 hover:bg-red-50 transition-colors" title="Deshabilitar">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5"/></svg>
+                  </button>
                 </form>
                 {% else %}
                 <form method="POST" action="/keys/{{ key.id }}/enable">
-                  <button type="submit" class="px-3 py-1.5 rounded-lg text-[11px] font-medium text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors">Habilitar</button>
+                  <button type="submit" class="px-2 py-1 rounded-md text-[11px] font-medium text-emerald-600 hover:bg-emerald-50 transition-colors" title="Habilitar">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z"/></svg>
+                  </button>
                 </form>
                 {% endif %}
                 <form method="POST" action="/keys/{{ key.id }}/delete" onsubmit="return confirm('Eliminar esta key?')">
-                  <button type="submit" class="px-3 py-1.5 rounded-lg text-[11px] font-medium text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors">Eliminar</button>
+                  <button type="submit" class="px-2 py-1 rounded-md text-[11px] font-medium text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Eliminar">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+                  </button>
                 </form>
               </div>
             </td>
           </tr>
           {% else %}
           <tr>
-            <td colspan="5" class="px-6 py-14 text-center">
+            <td colspan="7" class="px-5 py-14 text-center">
               <div class="w-12 h-12 mx-auto rounded-2xl bg-slate-100 flex items-center justify-center mb-3">
                 <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z"/></svg>
               </div>
-              <p class="text-slate-400 text-[13px]">No hay keys registradas. Agrega una.</p>
+              <p class="text-slate-400 text-[13px]">No hay keys registradas.</p>
             </td>
           </tr>
           {% endfor %}
@@ -99,25 +166,30 @@
     </div>
   </div>
 
-  <!-- Right: Add key + info -->
+  <!-- Right: Add key form -->
   <div class="space-y-5">
 
-    <!-- Add key -->
-    <div class="bg-white rounded-2xl border border-slate-200/60 p-6 shadow-sm">
+    <div class="bg-white rounded-2xl border border-slate-200/60 p-6 shadow-sm" x-data="{
+      service: '',
+      limits: {{ service_limits | tojson }},
+      get needsSecret() { return this.limits[this.service]?.needs_secret || false },
+      get defaultLimit() { return this.limits[this.service]?.monthly_limit || 0 },
+    }">
       <h3 class="text-[13px] font-semibold text-slate-700 mb-5 flex items-center gap-2.5">
         <div class="w-7 h-7 rounded-lg bg-brand-50 flex items-center justify-center">
           <svg class="w-3.5 h-3.5 text-brand-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
         </div>
         Agregar API Key
       </h3>
-      <form method="POST" action="/keys/add" class="space-y-4">
+      <form method="POST" action="/keys/add" class="space-y-3.5">
         <div>
           <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Servicio</label>
-          <select name="service" required class="w-full h-9 px-3 rounded-lg border border-slate-200 text-[13px] text-slate-700 bg-white focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none transition-all">
+          <select name="service" required x-model="service"
+                  class="w-full h-9 px-3 rounded-lg border border-slate-200 text-[13px] text-slate-700 bg-white focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none transition-all">
             <option value="">Seleccionar...</option>
-            <option value="apollo">Apollo</option>
-            <option value="google_places">Google Places</option>
-            <option value="hunter">Hunter.io</option>
+            {% for svc, info in service_limits.items() %}
+            <option value="{{ svc }}">{{ info.label }}</option>
+            {% endfor %}
           </select>
         </div>
         <div>
@@ -126,27 +198,67 @@
                  class="w-full h-9 px-3 rounded-lg border border-slate-200 text-[13px] text-slate-700 terminal-font placeholder-slate-300 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none transition-all"
                  placeholder="Pegar key aqui..." />
         </div>
+        <div x-show="needsSecret" x-transition>
+          <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Secret / Client Secret</label>
+          <input type="text" name="key_secret"
+                 class="w-full h-9 px-3 rounded-lg border border-slate-200 text-[13px] text-slate-700 terminal-font placeholder-slate-300 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none transition-all"
+                 placeholder="Secret key..." />
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Email de la cuenta</label>
+          <input type="email" name="account_email"
+                 class="w-full h-9 px-3 rounded-lg border border-slate-200 text-[13px] text-slate-700 placeholder-slate-300 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none transition-all"
+                 placeholder="tu@email.com" />
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Nombre de cuenta</label>
+          <input type="text" name="account_name"
+                 class="w-full h-9 px-3 rounded-lg border border-slate-200 text-[13px] text-slate-700 placeholder-slate-300 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none transition-all"
+                 placeholder="Gmail Mariano, Hotmail backup..." />
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Limite mensual</label>
+          <input type="number" name="monthly_limit" x-bind:value="defaultLimit" min="0"
+                 class="w-full h-9 px-3 rounded-lg border border-slate-200 text-[13px] text-slate-700 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none transition-all" />
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Notas</label>
+          <input type="text" name="notes"
+                 class="w-full h-9 px-3 rounded-lg border border-slate-200 text-[13px] text-slate-700 placeholder-slate-300 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none transition-all"
+                 placeholder="Notas opcionales..." />
+        </div>
         <button type="submit" class="w-full h-10 bg-gradient-to-r from-brand-600 to-brand-500 text-white text-[13px] font-semibold rounded-lg shadow-md shadow-brand-500/20 hover:shadow-lg hover:-translate-y-[1px] transition-all duration-200">
           Agregar key
         </button>
       </form>
     </div>
 
-    <!-- Services info -->
+    <!-- Capacity reference -->
     <div class="bg-white rounded-2xl border border-slate-200/60 p-6 shadow-sm">
-      <h3 class="text-[13px] font-semibold text-slate-700 mb-4">Info de servicios</h3>
-      <div class="space-y-3">
-        <div class="p-3.5 rounded-xl bg-gradient-to-br from-violet-50 to-violet-100/50 border border-violet-100">
-          <p class="text-[12px] font-semibold text-violet-700 mb-0.5">Apollo.io</p>
-          <p class="text-[11px] text-violet-600/70 leading-relaxed">Free: 50 creditos/mes. Endpoint: organizations/search.</p>
+      <h3 class="text-[13px] font-semibold text-slate-700 mb-4">Capacidad con 12 cuentas</h3>
+      <div class="space-y-2">
+        {% set capacity = [
+          ('Hunter.io', 25, 'orange'),
+          ('Snov.io', 50, 'emerald'),
+          ('Skrapp.io', 100, 'blue'),
+          ('Tomba.io', 25, 'rose'),
+          ('VoilaNorbert', 50, 'cyan'),
+          ('Apollo', 50, 'violet'),
+        ] %}
+        {% for name, per_acct, color in capacity %}
+        <div class="flex items-center justify-between p-2.5 rounded-xl bg-{{ color }}-50/50">
+          <span class="text-[12px] font-medium text-{{ color }}-700">{{ name }}</span>
+          <div class="text-right">
+            <span class="text-[12px] font-bold text-{{ color }}-700">{{ per_acct * 12 }}</span>
+            <span class="text-[11px] text-{{ color }}-500">/mes</span>
+          </div>
         </div>
-        <div class="p-3.5 rounded-xl bg-gradient-to-br from-sky-50 to-sky-100/50 border border-sky-100">
-          <p class="text-[12px] font-semibold text-sky-700 mb-0.5">Google Places API</p>
-          <p class="text-[11px] text-sky-600/70 leading-relaxed">$200 credito/mes gratis. ~1000-5000 busquedas.</p>
-        </div>
-        <div class="p-3.5 rounded-xl bg-gradient-to-br from-orange-50 to-orange-100/50 border border-orange-100">
-          <p class="text-[12px] font-semibold text-orange-700 mb-0.5">Hunter.io</p>
-          <p class="text-[11px] text-orange-600/70 leading-relaxed">Free: 25 busquedas/mes. Util como fallback de emails.</p>
+        {% endfor %}
+        <div class="pt-2 border-t border-slate-100">
+          <div class="flex justify-between">
+            <span class="text-[12px] font-semibold text-slate-700">Total emails</span>
+            <span class="text-[12px] font-bold text-emerald-600">~3,000/mes</span>
+          </div>
         </div>
       </div>
     </div>

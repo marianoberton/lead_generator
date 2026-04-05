@@ -37,6 +37,7 @@ from config import (
     LISTMONK_CSV,
     NO_EMAIL_CSV,
     LEADS_DIR,
+    SERVICE_LIMITS,
 )
 from src.db import (
     get_connection,
@@ -44,6 +45,8 @@ from src.db import (
     seed_keys_from_env,
     stats,
     get_all_leads,
+    get_keys_status,
+    reset_monthly_quotas,
 )
 
 # ── App setup ────────────────────────────────────────────────────
@@ -119,6 +122,38 @@ async def dashboard(request: Request):
     s = stats(conn)
     all_leads = get_all_leads(conn)
     recent = all_leads[:10]
+
+    # Enrichment pipeline stats
+    enrichment_stats = {}
+    for svc in ["crawl", "hunter", "snov", "skrapp", "tomba", "norbert"]:
+        if svc == "crawl":
+            found = conn.execute(
+                "SELECT COUNT(*) FROM leads WHERE crawl_status='done' AND email != '' AND email IS NOT NULL AND email_source='crawl'"
+            ).fetchone()[0]
+            not_found = conn.execute(
+                "SELECT COUNT(*) FROM leads WHERE crawl_status='done' AND (email IS NULL OR email = '' OR email_source != 'crawl')"
+            ).fetchone()[0]
+            enrichment_stats[svc] = {"found": found, "not_found": not_found}
+        else:
+            col = f"{svc}_searched"
+            found = conn.execute(
+                f"SELECT COUNT(*) FROM leads WHERE email_source = ?", (svc,)
+            ).fetchone()[0]
+            searched = conn.execute(
+                f"SELECT COUNT(*) FROM leads WHERE {col} = 1"
+            ).fetchone()[0]
+            enrichment_stats[svc] = {"found": found, "not_found": max(0, searched - found)}
+
+    # Keys summary for dashboard
+    keys = get_keys_status(conn)
+    keys_summary = {}
+    for k in keys:
+        svc = k.get("service", "")
+        if svc not in keys_summary:
+            keys_summary[svc] = {"used": 0, "limit": 0, "label": SERVICE_LIMITS.get(svc, {}).get("label", svc)}
+        keys_summary[svc]["used"] += k.get("requests_month", 0)
+        keys_summary[svc]["limit"] += k.get("monthly_limit", 0)
+
     conn.close()
     return templates.TemplateResponse(
         "dashboard.html",
@@ -127,6 +162,8 @@ async def dashboard(request: Request):
             "stats": s,
             "recent_leads": recent,
             "total_leads": s["total"],
+            "enrichment_stats": enrichment_stats,
+            "keys_summary": keys_summary,
         },
     )
 
@@ -299,6 +336,7 @@ async def jobs_start(
     limit: int = Form(100),
     concurrency: int = Form(20),
     steps: list[str] = Form(default=[]),
+    enrich_source: str = Form("hunter"),
 ):
     extra: list[str] = []
 
@@ -306,7 +344,7 @@ async def jobs_start(
         extra += ["--source", source]
         if industries:
             extra += ["--industries"] + industries
-        if countries and source != "apollo":
+        if countries and source not in ("apollo",):
             extra += ["--countries"] + countries
         extra += ["--limit", str(limit)]
 
@@ -314,6 +352,9 @@ async def jobs_start(
         extra += ["--limit", str(limit), "--concurrency", str(concurrency)]
 
     elif command == "enrich":
+        extra += ["--source", enrich_source, "--limit", str(limit)]
+
+    elif command == "enrich-all":
         extra += ["--limit", str(limit)]
 
     elif command == "process":
@@ -381,26 +422,57 @@ async def job_status(job_id: str):
 @app.get("/keys", response_class=HTMLResponse)
 async def keys_page(request: Request, message: str = ""):
     conn = get_db()
-    rows = conn.execute("SELECT * FROM api_keys ORDER BY service, id").fetchall()
-    keys = [dict(r) for r in rows]
+    keys = get_keys_status(conn)
     s = stats(conn)
+
+    # Compute summaries per service
+    service_summary = {}
+    for k in keys:
+        svc = k.get("service", "")
+        if svc not in service_summary:
+            service_summary[svc] = {"total": 0, "active": 0, "used": 0, "limit": 0,
+                                     "label": SERVICE_LIMITS.get(svc, {}).get("label", svc)}
+        service_summary[svc]["total"] += 1
+        if k.get("active"):
+            service_summary[svc]["active"] += 1
+        service_summary[svc]["used"] += k.get("requests_month", 0)
+        service_summary[svc]["limit"] += k.get("monthly_limit", 0)
+
     conn.close()
     return templates.TemplateResponse(
         "keys.html",
-        {"request": request, "keys": keys, "message": message, "total_leads": s["total"]},
+        {
+            "request": request,
+            "keys": keys,
+            "message": message,
+            "total_leads": s["total"],
+            "service_limits": SERVICE_LIMITS,
+            "service_summary": service_summary,
+        },
     )
 
 
 @app.post("/keys/add")
-async def keys_add(service: str = Form(...), key_value: str = Form(...)):
+async def keys_add(
+    service: str = Form(...),
+    key_value: str = Form(...),
+    key_secret: str = Form(""),
+    account_email: str = Form(""),
+    account_name: str = Form(""),
+    monthly_limit: int = Form(0),
+    notes: str = Form(""),
+):
     key_value = key_value.strip()
     if not key_value:
-        return RedirectResponse("/keys?message=Error:+key+vacía", status_code=303)
+        return RedirectResponse("/keys?message=Error:+key+vacia", status_code=303)
     conn = get_db()
     try:
         conn.execute(
-            "INSERT OR IGNORE INTO api_keys (service, key_value) VALUES (?, ?)",
-            (service, key_value),
+            """INSERT OR IGNORE INTO api_keys
+               (service, key_value, key_secret, account_email, account_name, monthly_limit, notes)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (service, key_value, key_secret.strip(), account_email.strip(),
+             account_name.strip(), monthly_limit, notes.strip()),
         )
         conn.commit()
         msg = f"Key+de+{service}+agregada+correctamente"
@@ -435,6 +507,14 @@ async def keys_delete(key_id: int):
     conn.commit()
     conn.close()
     return RedirectResponse("/keys?message=Key+eliminada", status_code=303)
+
+
+@app.post("/keys/reset-quotas")
+async def keys_reset():
+    conn = get_db()
+    reset_monthly_quotas(conn)
+    conn.close()
+    return RedirectResponse("/keys?message=Quotas+mensuales+reseteadas", status_code=303)
 
 
 # ── Export ────────────────────────────────────────────────────────
@@ -483,4 +563,5 @@ if __name__ == "__main__":
     import uvicorn
     print("FOMO Lead Gen — Web App")
     print("Abrí http://localhost:8000 en tu browser")
-    uvicorn.run("web_app:app", host="0.0.0.0", port=8000)
+    port = int(os.getenv("PORT", "8000"))
+    uvicorn.run("web_app:app", host="0.0.0.0", port=port)

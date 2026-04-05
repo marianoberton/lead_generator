@@ -8,6 +8,11 @@ from config import (
     APOLLO_API_KEYS,
     GOOGLE_PLACES_API_KEYS,
     HUNTER_API_KEYS,
+    APIFY_API_KEYS,
+    SNOV_API_KEYS,
+    SKRAPP_API_KEYS,
+    TOMBA_API_KEYS,
+    NORBERT_API_KEYS,
     DB_PATH,
     APOLLO_OUTPUT,
     ENRICHED_OUTPUT,
@@ -81,6 +86,8 @@ def get_connection() -> sqlite3.Connection:
 def init_db(conn: sqlite3.Connection):
     conn.executescript(SCHEMA)
     conn.commit()
+    from src.migrations import run_migrations
+    run_migrations(conn)
 
 
 def normalize_domain(url: str) -> str:
@@ -195,6 +202,47 @@ def get_pending_hunter(conn: sqlite3.Connection, limit: int = 200) -> list[dict]
     return [dict(r) for r in rows]
 
 
+def get_pending_enrichment(conn: sqlite3.Connection, service: str, limit: int = 200) -> list[dict]:
+    """Leads sin email, con website, no buscados en el servicio dado."""
+    col = f"{service}_searched"
+    rows = conn.execute(
+        f"""SELECT * FROM leads
+            WHERE (email IS NULL OR email = '')
+              AND {col} = 0
+              AND website != ''
+            ORDER BY rating DESC NULLS LAST
+            LIMIT ?""",
+        (limit,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def mark_searched(conn: sqlite3.Connection, domain: str, service: str):
+    """Marca un lead como ya buscado en un servicio de enrichment."""
+    col = f"{service}_searched"
+    conn.execute(f"UPDATE leads SET {col} = 1, updated_at = datetime('now') WHERE domain = ?", (domain,))
+    conn.commit()
+
+
+def update_lead_email(conn: sqlite3.Connection, domain: str, email: str, score: int,
+                      source: str, contact_name: str = "", contact_title: str = "",
+                      emails_all: str = ""):
+    """Actualiza email y contacto de un lead."""
+    conn.execute(
+        """UPDATE leads SET
+             email = ?,
+             email_score = ?,
+             email_source = ?,
+             contact_name = COALESCE(NULLIF(?, ''), contact_name),
+             contact_title = COALESCE(NULLIF(?, ''), contact_title),
+             emails_all = COALESCE(NULLIF(?, ''), emails_all),
+             updated_at = datetime('now')
+           WHERE domain = ? AND (email IS NULL OR email = '')""",
+        (email, score, source, contact_name, contact_title, emails_all, domain),
+    )
+    conn.commit()
+
+
 def get_all_leads(conn: sqlite3.Connection) -> list[dict]:
     rows = conn.execute("SELECT * FROM leads ORDER BY rating DESC NULLS LAST").fetchall()
     leads = []
@@ -257,6 +305,11 @@ def seed_keys_from_env(conn: sqlite3.Connection):
         "apollo": APOLLO_API_KEYS,
         "google_places": GOOGLE_PLACES_API_KEYS,
         "hunter": HUNTER_API_KEYS,
+        "apify": APIFY_API_KEYS,
+        "snov": SNOV_API_KEYS,
+        "skrapp": SKRAPP_API_KEYS,
+        "tomba": TOMBA_API_KEYS,
+        "norbert": NORBERT_API_KEYS,
     }
     for service, keys in services.items():
         for key in keys:
@@ -282,3 +335,48 @@ def disable_key(conn: sqlite3.Connection, key_id: int, reason: str):
         (reason, key_id),
     )
     conn.commit()
+
+
+def track_key_usage(conn: sqlite3.Connection, key_id: int):
+    """Incrementa contadores de uso de una key."""
+    conn.execute(
+        """UPDATE api_keys SET
+             requests_today = requests_today + 1,
+             requests_total = requests_total + 1,
+             requests_month = requests_month + 1,
+             last_used_at = datetime('now')
+           WHERE id = ?""",
+        (key_id,),
+    )
+    conn.commit()
+
+
+def is_key_over_quota(conn: sqlite3.Connection, key_id: int) -> bool:
+    """Verifica si una key supero su limite mensual."""
+    row = conn.execute(
+        "SELECT monthly_limit, requests_month FROM api_keys WHERE id = ?",
+        (key_id,),
+    ).fetchone()
+    if not row:
+        return True
+    limit = row["monthly_limit"]
+    if limit <= 0:
+        return False  # No limit set
+    return row["requests_month"] >= limit
+
+
+def reset_monthly_quotas(conn: sqlite3.Connection):
+    """Resetea requests_month y reactiva keys con QUOTA_EXHAUSTED."""
+    conn.execute("UPDATE api_keys SET requests_month = 0")
+    conn.execute(
+        "UPDATE api_keys SET active = 1, error_reason = NULL WHERE error_reason = 'QUOTA_EXHAUSTED'"
+    )
+    conn.commit()
+
+
+def get_keys_status(conn: sqlite3.Connection) -> list[dict]:
+    """Retorna todas las keys con su estado para el dashboard."""
+    rows = conn.execute(
+        "SELECT * FROM api_keys ORDER BY service, id"
+    ).fetchall()
+    return [dict(r) for r in rows]

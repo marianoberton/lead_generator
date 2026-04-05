@@ -4,7 +4,7 @@ import time
 
 import requests
 
-from src.db import normalize_domain, update_lead
+from src.db import normalize_domain, update_lead, mark_searched, update_lead_email
 from src.key_rotator import KeyRotator
 from config import HUNTER_MIN_SCORE
 
@@ -82,6 +82,7 @@ def run(conn, rotator: KeyRotator, limit: int = 200) -> int:
         data = search_domain(domain, key)
 
         # Marcar como buscado siempre
+        mark_searched(conn, domain, "hunter")
         update_lead(conn, domain, {"hunter_searched": 1})
 
         if data is None:
@@ -96,21 +97,14 @@ def run(conn, rotator: KeyRotator, limit: int = 200) -> int:
             rotator.on_denied(key_id, "HUNTER_UNAUTHORIZED")
             continue
 
+        rotator.on_success(key_id)
+
         result = pick_best_email(data)
         if result:
             email, score, name, position = result
-            fields = {
-                "email":        email,
-                "email_score":  2 if score >= 80 else 1,
-                "email_source": "hunter",
-                "hunter_score": score,
-            }
-            if name and not lead.get("contact_name"):
-                fields["contact_name"] = name
-            if position and not lead.get("contact_title"):
-                fields["contact_title"] = position
-
-            update_lead(conn, domain, fields)
+            email_score = 2 if score >= 80 else 1
+            update_lead_email(conn, domain, email, email_score, "hunter", name, position)
+            update_lead(conn, domain, {"hunter_score": score})
             enriched += 1
             print(f"  [{i}/{len(leads)}] {lead.get('company','')[:40]:<40} -> {email} (score: {score})")
         else:

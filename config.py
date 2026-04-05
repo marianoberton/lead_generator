@@ -16,12 +16,17 @@ def _parse_keys(multi_var: str, single_var: str) -> list[str]:
     return keys
 
 
-# --- API Keys (multi-key para rotación) ---
+# --- API Keys (multi-key para rotacion) ---
 APOLLO_API_KEYS = _parse_keys("APOLLO_API_KEYS", "APOLLO_API_KEY")
 GOOGLE_PLACES_API_KEYS = _parse_keys("GOOGLE_PLACES_API_KEYS", "GOOGLE_PLACES_API_KEY")
 HUNTER_API_KEYS = _parse_keys("HUNTER_API_KEYS", "HUNTER_API_KEY")
+APIFY_API_KEYS = _parse_keys("APIFY_API_KEYS", "APIFY_API_KEY")
+SNOV_API_KEYS = _parse_keys("SNOV_API_KEYS", "SNOV_API_KEY")
+SKRAPP_API_KEYS = _parse_keys("SKRAPP_API_KEYS", "SKRAPP_API_KEY")
+TOMBA_API_KEYS = _parse_keys("TOMBA_API_KEYS", "TOMBA_API_KEY")
+NORBERT_API_KEYS = _parse_keys("NORBERT_API_KEYS", "NORBERT_API_KEY")
 
-# Retrocompatibilidad — primera key disponible
+# Retrocompatibilidad
 APOLLO_API_KEY = APOLLO_API_KEYS[0] if APOLLO_API_KEYS else ""
 GOOGLE_PLACES_API_KEY = GOOGLE_PLACES_API_KEYS[0] if GOOGLE_PLACES_API_KEYS else ""
 HUNTER_API_KEY = HUNTER_API_KEYS[0] if HUNTER_API_KEYS else ""
@@ -205,3 +210,32 @@ DISCARD_EMAIL_PREFIXES = [
     "rrhh", "hr", "recruitment", "noreply", "no-reply",
     "newsletter", "unsubscribe", "marketing",
 ]
+
+# --- Service metadata (free tier limits, labels, auth type) ---
+SERVICE_LIMITS = {
+    "hunter":        {"monthly_limit": 25,  "needs_secret": False, "label": "Hunter.io"},
+    "snov":          {"monthly_limit": 50,  "needs_secret": True,  "label": "Snov.io"},
+    "skrapp":        {"monthly_limit": 100, "needs_secret": False, "label": "Skrapp.io"},
+    "tomba":         {"monthly_limit": 25,  "needs_secret": True,  "label": "Tomba.io"},
+    "norbert":       {"monthly_limit": 50,  "needs_secret": False, "label": "VoilaNorbert"},
+    "apollo":        {"monthly_limit": 50,  "needs_secret": False, "label": "Apollo.io"},
+    "apify":         {"monthly_limit": 0,   "needs_secret": False, "label": "Apify ($5 creditos)"},
+    "google_places": {"monthly_limit": 0,   "needs_secret": False, "label": "Google Places"},
+}
+
+# --- Enrichment waterfall order ---
+ENRICHMENT_SERVICES = [
+    ("hunter",  "src.enricher_hunter"),
+    ("snov",    "src.enricher_snov"),
+    ("skrapp",  "src.enricher_skrapp"),
+    ("tomba",   "src.enricher_tomba"),
+    ("norbert", "src.enricher_norbert"),
+]
+
+# --- Apify ---
+APIFY_DELAY = 1.0
+APIFY_POLL_INTERVAL = 10  # seconds between status checks
+APIFY_ACTOR_ID = "compass~crawler-google-places"
+
+# --- Enricher delays ---
+ENRICHER_DELAY = 1.0  # 1 req/s default for all enrichers
