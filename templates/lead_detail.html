@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+
+{% block title %}{{ lead.company }} — FOMO Leads{% endblock %}
+{% block page_title %}{{ lead.company }}{% endblock %}
+{% block page_subtitle %}{{ lead.domain }} &middot; {{ lead.country or 'N/A' }}{% endblock %}
+
+{% block header_actions %}
+<a href="/leads" class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 text-[13px] font-medium rounded-lg hover:bg-slate-50 transition-all shadow-sm">
+  <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/></svg>
+  Volver
+</a>
+<form method="POST" action="/leads/{{ lead.id }}/delete" onsubmit="return confirm('Seguro que queres eliminar este lead?')">
+  <button type="submit" class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-red-200 text-red-600 text-[13px] font-medium rounded-lg hover:bg-red-50 transition-all shadow-sm">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+    Eliminar
+  </button>
+</form>
+{% endblock %}
+
+{% block content %}
+
+{% if message %}
+<div class="mb-5 p-4 rounded-xl border text-[13px] font-medium
+  {% if 'Error' in message %}bg-red-50 border-red-200 text-red-700{% else %}bg-emerald-50 border-emerald-200 text-emerald-700{% endif %}">
+  {{ message }}
+</div>
+{% endif %}
+
+<div class="grid grid-cols-3 gap-5">
+
+  <!-- Left: Info panels -->
+  <div class="col-span-2 space-y-5">
+
+    <!-- Company info -->
+    <div class="bg-white rounded-2xl border border-slate-200/60 p-6 shadow-sm">
+      <h3 class="text-[13px] font-semibold text-slate-700 mb-5 flex items-center gap-2.5">
+        <div class="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center">
+          <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5M3.75 3v18m4.5-18v18m4.5-18v18m4.5-18v18m4.5-18v18"/></svg>
+        </div>
+        Informacion de la empresa
+      </h3>
+      <div class="grid grid-cols-2 gap-x-10 gap-y-4">
+        <div>
+          <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Empresa</p>
+          <p class="text-[13px] text-slate-800 font-medium">{{ lead.company }}</p>
+        </div>
+        <div>
+          <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Website</p>
+          {% if lead.website %}
+          <a href="{{ lead.website }}" target="_blank" class="text-[13px] text-brand-600 hover:text-brand-700 hover:underline transition-colors">{{ lead.domain }}</a>
+          {% else %}
+          <p class="text-[13px] text-slate-400">—</p>
+          {% endif %}
+        </div>
+        <div>
+          <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Pais</p>
+          <p class="text-[13px] text-slate-800">{{ lead.country or '—' }}</p>
+        </div>
+        <div>
+          <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Ciudad</p>
+          <p class="text-[13px] text-slate-800">{{ lead.city or '—' }}</p>
+        </div>
+        <div>
+          <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Industria</p>
+          <p class="text-[13px] text-slate-800 capitalize">{{ (lead.industry or '—') | replace('_', ' ') }}</p>
+        </div>
+        <div>
+          <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Fuente</p>
+          {% if lead.source == 'apollo' %}
+          <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-violet-50 text-violet-700 text-[11px] font-medium">Apollo</span>
+          {% elif lead.source == 'google_places' %}
+          <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-sky-50 text-sky-700 text-[11px] font-medium">Google Places</span>
+          {% else %}
+          <p class="text-[13px] text-slate-800">{{ lead.source or '—' }}</p>
+          {% endif %}
+        </div>
+        <div>
+          <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Empleados</p>
+          <p class="text-[13px] text-slate-800">{{ lead.employees or '—' }}</p>
+        </div>
+        <div>
+          <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Telefono</p>
+          <p class="text-[13px] text-slate-800">{{ lead.phone or '—' }}</p>
+        </div>
+        {% if lead.rating %}
+        <div>
+          <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Rating Google</p>
+          <p class="text-[13px] text-slate-800">{{ lead.rating }} <span class="text-amber-400">&#9733;</span> ({{ lead.reviews_count or 0 }} resenas)</p>
+        </div>
+        {% endif %}
+        {% if lead.linkedin_url %}
+        <div>
+          <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">LinkedIn</p>
+          <a href="{{ lead.linkedin_url }}" target="_blank" class="text-[13px] text-brand-600 hover:underline">ver perfil</a>
+        </div>
+        {% endif %}
+      </div>
+      {% if lead.company_description %}
+      <div class="mt-5 pt-5 border-t border-slate-100">
+        <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Descripcion</p>
+        <p class="text-[13px] text-slate-600 leading-relaxed">{{ lead.company_description }}</p>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Contact info -->
+    <div class="bg-white rounded-2xl border border-slate-200/60 p-6 shadow-sm">
+      <h3 class="text-[13px] font-semibold text-slate-700 mb-5 flex items-center gap-2.5">
+        <div class="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center">
+          <svg class="w-3.5 h-3.5 text-emerald-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/></svg>
+        </div>
+        Contacto
+      </h3>
+      <div class="grid grid-cols-2 gap-x-10 gap-y-4">
+        <div>
+          <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Email principal</p>
+          {% if lead.email %}
+          <p class="text-[13px] text-slate-800 terminal-font">{{ lead.email }}</p>
+          {% else %}
+          <p class="text-[13px] text-slate-400 italic">Sin email</p>
+          {% endif %}
+        </div>
+        <div>
+          <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Score</p>
+          {% if lead.email_score == 3 %}
+          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[11px] font-medium"><span class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>verificado (Apollo)</span>
+          {% elif lead.email_score == 2 %}
+          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[11px] font-medium"><span class="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>persona</span>
+          {% elif lead.email_score == 1 %}
+          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[11px] font-medium">generico</span>
+          {% else %}
+          <span class="text-slate-400 text-[13px]">—</span>
+          {% endif %}
+        </div>
+        <div>
+          <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Fuente del email</p>
+          <p class="text-[13px] text-slate-800">{{ lead.email_source or '—' }}</p>
+        </div>
+        <div>
+          <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Nombre contacto</p>
+          <p class="text-[13px] text-slate-800">{{ lead.contact_name or '—' }}</p>
+        </div>
+        <div>
+          <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Cargo</p>
+          <p class="text-[13px] text-slate-800">{{ lead.contact_title or '—' }}</p>
+        </div>
+      </div>
+      {% if lead.emails_all %}
+      <div class="mt-5 pt-5 border-t border-slate-100">
+        <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Todos los emails encontrados</p>
+        <div class="flex flex-wrap gap-1.5">
+          {% set emails = lead.emails_all | from_json %}
+          {% for e in emails %}
+          <span class="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 text-[11px] terminal-font">{{ e }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Crawl status -->
+    <div class="bg-white rounded-2xl border border-slate-200/60 p-6 shadow-sm">
+      <h3 class="text-[13px] font-semibold text-slate-700 mb-4 flex items-center gap-2.5">
+        <div class="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center">
+          <svg class="w-3.5 h-3.5 text-amber-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418"/></svg>
+        </div>
+        Estado del crawl
+      </h3>
+      <div class="flex items-center gap-6">
+        <div>
+          <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Estado</p>
+          {% if lead.crawl_status == 'done' %}
+          <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-[12px] font-medium"><span class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>done</span>
+          {% elif lead.crawl_status == 'failed' %}
+          <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-50 text-red-600 text-[12px] font-medium"><span class="w-1.5 h-1.5 bg-red-400 rounded-full"></span>failed</span>
+          {% else %}
+          <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 text-[12px] font-medium"><span class="w-1.5 h-1.5 bg-amber-400 rounded-full"></span>pending</span>
+          {% endif %}
+        </div>
+        <div>
+          <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Paginas crawleadas</p>
+          <p class="text-[13px] text-slate-700 font-medium">{{ lead.pages_crawled or 0 }}</p>
+        </div>
+        {% if lead.crawl_error %}
+        <div class="flex-1">
+          <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Error</p>
+          <p class="text-[13px] text-red-600 terminal-font">{{ lead.crawl_error }}</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Edit panel -->
+  <div class="space-y-5">
+    <form method="POST" action="/leads/{{ lead.id }}/update">
+      <div class="bg-white rounded-2xl border border-slate-200/60 p-6 shadow-sm">
+        <h3 class="text-[13px] font-semibold text-slate-700 mb-5 flex items-center gap-2.5">
+          <div class="w-7 h-7 rounded-lg bg-brand-50 flex items-center justify-center">
+            <svg class="w-3.5 h-3.5 text-brand-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"/></svg>
+          </div>
+          Editar campos
+        </h3>
+
+        <div class="space-y-4">
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Email</label>
+            <input type="email" name="email" value="{{ lead.email or '' }}"
+                   class="w-full h-9 px-3 rounded-lg border border-slate-200 text-[13px] text-slate-700 placeholder-slate-300 terminal-font focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none transition-all"
+                   placeholder="contacto@empresa.com" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Nombre del contacto</label>
+            <input type="text" name="contact_name" value="{{ lead.contact_name or '' }}"
+                   class="w-full h-9 px-3 rounded-lg border border-slate-200 text-[13px] text-slate-700 placeholder-slate-300 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none transition-all"
+                   placeholder="Juan Garcia" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Cargo</label>
+            <input type="text" name="contact_title" value="{{ lead.contact_title or '' }}"
+                   class="w-full h-9 px-3 rounded-lg border border-slate-200 text-[13px] text-slate-700 placeholder-slate-300 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none transition-all"
+                   placeholder="CEO, Director Comercial..." />
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Personalizacion <span class="text-slate-300 normal-case">(max 15 palabras)</span></label>
+            <textarea name="personalization" rows="3"
+                      class="w-full px-3 py-2 rounded-lg border border-slate-200 text-[13px] text-slate-700 placeholder-slate-300 resize-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none transition-all"
+                      placeholder="Tu empresa ha expandido sus servicios en LATAM...">{{ lead.personalization or '' }}</textarea>
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Tipo</label>
+            <select name="personalization_type" class="w-full h-9 px-3 rounded-lg border border-slate-200 text-[13px] text-slate-700 bg-white focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none transition-all">
+              <option value="concrete" {% if lead.personalization_type == 'concrete' %}selected{% endif %}>concrete (datos reales)</option>
+              <option value="scale" {% if lead.personalization_type == 'scale' %}selected{% endif %}>scale (empleados/rating)</option>
+              <option value="fallback" {% if lead.personalization_type == 'fallback' %}selected{% endif %}>fallback (generico)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Pain point</label>
+            <textarea name="pain_point" rows="3"
+                      class="w-full px-3 py-2 rounded-lg border border-slate-200 text-[13px] text-slate-700 placeholder-slate-300 resize-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none transition-all"
+                      placeholder="Descripcion del dolor de negocio...">{{ lead.pain_point or '' }}</textarea>
+          </div>
+        </div>
+
+        <button type="submit" class="w-full mt-5 h-10 bg-gradient-to-r from-brand-600 to-brand-500 text-white text-[13px] font-semibold rounded-lg shadow-md shadow-brand-500/20 hover:shadow-lg hover:-translate-y-[1px] transition-all duration-200">
+          Guardar cambios
+        </button>
+      </div>
+    </form>
+
+    <!-- Metadata -->
+    <div class="bg-white rounded-2xl border border-slate-200/60 p-6 shadow-sm">
+      <h3 class="text-[13px] font-semibold text-slate-700 mb-4">Metadata</h3>
+      <div class="space-y-2.5">
+        {% set meta_items = [
+          ('ID', lead.id),
+          ('Creado', lead.created_at[:10] if lead.created_at else '—'),
+          ('Actualizado', lead.updated_at[:10] if lead.updated_at else '—'),
+          ('Hunter buscado', 'Si' if lead.hunter_searched else 'No'),
+        ] %}
+        {% for label, value in meta_items %}
+        <div class="flex justify-between items-center">
+          <span class="text-[12px] text-slate-400">{{ label }}</span>
+          <span class="text-[12px] text-slate-600 font-medium terminal-font">{{ value }}</span>
+        </div>
+        {% endfor %}
+        {% if lead.hunter_score %}
+        <div class="flex justify-between items-center">
+          <span class="text-[12px] text-slate-400">Hunter score</span>
+          <span class="text-[12px] text-slate-600 font-medium">{{ lead.hunter_score }}</span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,29 @@
+# Secrets
+.env
+*.env.local
+
+# Database
+*.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Output data
+leads/*.json
+leads/*.csv
+leads/*.md
+leads/*.html
+
+# Debug
+debug_*.html
+
+# IDE
+.vscode/
+.idea/
+
+# Claude
+.claude/

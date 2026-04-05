@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}FOMO Leads{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'] },
+          colors: {
+            brand: { 50:'#eef2ff', 100:'#e0e7ff', 200:'#c7d2fe', 300:'#a5b4fc', 400:'#818cf8', 500:'#6366f1', 600:'#4f46e5', 700:'#4338ca', 800:'#3730a3', 900:'#312e81' },
+            surface: { 0:'#ffffff', 1:'#f8fafc', 2:'#f1f5f9', 3:'#e2e8f0' }
+          }
+        }
+      }
+    }
+  </script>
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    [x-cloak] { display: none !important; }
+    body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+    .terminal-font { font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace; }
+    /* Smooth scrollbar for terminal */
+    .custom-scroll::-webkit-scrollbar { width: 6px; }
+    .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+    .custom-scroll::-webkit-scrollbar-thumb:hover { background: #64748b; }
+    /* Animated gradient */
+    @keyframes gradient-shift { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+    .animated-gradient { background-size: 200% 200%; animation: gradient-shift 8s ease infinite; }
+  </style>
+</head>
+<body class="h-full bg-slate-50 antialiased">
+<div class="flex h-full">
+
+  <!-- ─── Sidebar ─── -->
+  <aside class="w-[220px] flex flex-col bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 border-r border-slate-800 fixed inset-y-0 left-0 z-30">
+
+    <!-- Logo -->
+    <div class="px-5 py-5 border-b border-white/[0.06]">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center shadow-lg shadow-brand-500/20">
+          <span class="text-white font-extrabold text-sm tracking-tight">F</span>
+        </div>
+        <div>
+          <p class="text-white font-semibold text-[13px] leading-none tracking-tight">FOMO Leads</p>
+          <p class="text-slate-500 text-[11px] mt-0.5">fomologic.com</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Nav -->
+    <nav class="flex-1 px-3 py-4 space-y-1">
+
+      <a href="/"
+         class="group flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all duration-150
+                {% if request.url.path == '/' %}bg-white/[0.08] text-white shadow-sm{% else %}text-slate-400 hover:text-white hover:bg-white/[0.04]{% endif %}">
+        <svg class="w-[18px] h-[18px] {% if request.url.path == '/' %}text-brand-400{% else %}text-slate-500 group-hover:text-slate-300{% endif %} transition-colors" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"/></svg>
+        Dashboard
+      </a>
+
+      <a href="/leads"
+         class="group flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all duration-150
+                {% if '/leads' in request.url.path %}bg-white/[0.08] text-white shadow-sm{% else %}text-slate-400 hover:text-white hover:bg-white/[0.04]{% endif %}">
+        <svg class="w-[18px] h-[18px] {% if '/leads' in request.url.path %}text-brand-400{% else %}text-slate-500 group-hover:text-slate-300{% endif %} transition-colors" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg>
+        Leads
+        {% if total_leads %}<span class="ml-auto text-[11px] px-2 py-0.5 rounded-full bg-brand-500/20 text-brand-300 font-semibold">{{ total_leads }}</span>{% endif %}
+      </a>
+
+      <a href="/jobs"
+         class="group flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all duration-150
+                {% if '/jobs' in request.url.path %}bg-white/[0.08] text-white shadow-sm{% else %}text-slate-400 hover:text-white hover:bg-white/[0.04]{% endif %}">
+        <svg class="w-[18px] h-[18px] {% if '/jobs' in request.url.path %}text-brand-400{% else %}text-slate-500 group-hover:text-slate-300{% endif %} transition-colors" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3m3 3a3 3 0 100 6h13.5a3 3 0 100-6m-16.5-3a3 3 0 013-3h13.5a3 3 0 013 3m-19.5 0a4.5 4.5 0 01.9-2.7L5.737 5.1a3.375 3.375 0 012.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 01.9 2.7m0 0a3 3 0 01-3 3m0 3h.008v.008h-.008v-.008zm0-6h.008v.008h-.008v-.008zm-3 6h.008v.008h-.008v-.008zm0-6h.008v.008H15v-.008z"/></svg>
+        Jobs
+      </a>
+
+      <a href="/keys"
+         class="group flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all duration-150
+                {% if '/keys' in request.url.path %}bg-white/[0.08] text-white shadow-sm{% else %}text-slate-400 hover:text-white hover:bg-white/[0.04]{% endif %}">
+        <svg class="w-[18px] h-[18px] {% if '/keys' in request.url.path %}text-brand-400{% else %}text-slate-500 group-hover:text-slate-300{% endif %} transition-colors" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z"/></svg>
+        API Keys
+      </a>
+
+    </nav>
+
+    <!-- Footer -->
+    <div class="px-4 py-4 border-t border-white/[0.06]">
+      <div class="flex items-center gap-2.5 px-2">
+        <span class="relative flex h-2 w-2">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+        </span>
+        <span class="text-[11px] text-slate-500 font-medium">Sistema activo</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ─── Main ─── -->
+  <div class="ml-[220px] flex-1 flex flex-col min-h-screen">
+
+    <!-- Header -->
+    <header class="h-[60px] bg-white/80 backdrop-blur-md border-b border-slate-200/60 px-7 flex items-center justify-between sticky top-0 z-20">
+      <div>
+        <h1 class="text-[15px] font-semibold text-slate-800 tracking-tight">{% block page_title %}{% endblock %}</h1>
+        <p class="text-[11px] text-slate-400 mt-0.5">{% block page_subtitle %}{% endblock %}</p>
+      </div>
+      <div class="flex items-center gap-3">
+        {% block header_actions %}{% endblock %}
+      </div>
+    </header>
+
+    <!-- Content -->
+    <main class="flex-1 p-7">
+      {% block content %}{% endblock %}
+    </main>
+
+  </div>
+</div>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

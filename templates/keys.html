@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}API Keys — FOMO Leads{% endblock %}
+{% block page_title %}API Keys{% endblock %}
+{% block page_subtitle %}Gestion de claves para Apollo, Google Places y Hunter{% endblock %}
+
+{% block content %}
+
+{% if message %}
+<div class="mb-5 p-4 rounded-xl border text-[13px] font-medium
+  {% if 'Error' in message %}bg-red-50 border-red-200 text-red-700{% else %}bg-emerald-50 border-emerald-200 text-emerald-700{% endif %}">
+  {{ message }}
+</div>
+{% endif %}
+
+<div class="grid grid-cols-3 gap-5">
+
+  <!-- Keys table -->
+  <div class="col-span-2">
+    <div class="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
+      <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+        <h3 class="text-[13px] font-semibold text-slate-700">Keys registradas</h3>
+        <span class="text-[11px] text-slate-400 font-medium">{{ keys | length }} total</span>
+      </div>
+      <table class="w-full">
+        <thead>
+          <tr class="border-b border-slate-100 bg-slate-50/50">
+            <th class="text-left px-6 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Servicio</th>
+            <th class="text-left px-6 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Key</th>
+            <th class="text-left px-6 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Estado</th>
+            <th class="text-left px-6 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Error</th>
+            <th class="px-6 py-3"></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-50">
+          {% for key in keys %}
+          <tr class="hover:bg-slate-50/50 transition-colors">
+            <td class="px-6 py-4">
+              {% if key.service == 'apollo' %}
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-50 text-violet-700 text-[11px] font-medium">
+                <span class="w-1.5 h-1.5 bg-violet-500 rounded-full"></span>Apollo
+              </span>
+              {% elif key.service == 'google_places' %}
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-50 text-sky-700 text-[11px] font-medium">
+                <span class="w-1.5 h-1.5 bg-sky-500 rounded-full"></span>Google Places
+              </span>
+              {% elif key.service == 'hunter' %}
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-orange-50 text-orange-700 text-[11px] font-medium">
+                <span class="w-1.5 h-1.5 bg-orange-500 rounded-full"></span>Hunter.io
+              </span>
+              {% else %}
+              <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[11px] font-medium">{{ key.service }}</span>
+              {% endif %}
+            </td>
+            <td class="px-6 py-4">
+              <code class="text-[12px] text-slate-600 terminal-font bg-slate-100 px-2 py-1 rounded-md">{{ key.key_value[:8] }}...{{ key.key_value[-4:] }}</code>
+            </td>
+            <td class="px-6 py-4">
+              {% if key.active %}
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[11px] font-medium">
+                <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>activa
+              </span>
+              {% else %}
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-red-50 text-red-600 text-[11px] font-medium">
+                <span class="w-1.5 h-1.5 bg-red-400 rounded-full"></span>deshabilitada
+              </span>
+              {% endif %}
+            </td>
+            <td class="px-6 py-4 text-[12px] text-red-500 terminal-font">{{ key.error_reason or '—' }}</td>
+            <td class="px-6 py-4">
+              <div class="flex items-center gap-2 justify-end">
+                {% if key.active %}
+                <form method="POST" action="/keys/{{ key.id }}/disable">
+                  <button type="submit" class="px-3 py-1.5 rounded-lg text-[11px] font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-colors">Deshabilitar</button>
+                </form>
+                {% else %}
+                <form method="POST" action="/keys/{{ key.id }}/enable">
+                  <button type="submit" class="px-3 py-1.5 rounded-lg text-[11px] font-medium text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors">Habilitar</button>
+                </form>
+                {% endif %}
+                <form method="POST" action="/keys/{{ key.id }}/delete" onsubmit="return confirm('Eliminar esta key?')">
+                  <button type="submit" class="px-3 py-1.5 rounded-lg text-[11px] font-medium text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors">Eliminar</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="5" class="px-6 py-14 text-center">
+              <div class="w-12 h-12 mx-auto rounded-2xl bg-slate-100 flex items-center justify-center mb-3">
+                <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z"/></svg>
+              </div>
+              <p class="text-slate-400 text-[13px]">No hay keys registradas. Agrega una.</p>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Right: Add key + info -->
+  <div class="space-y-5">
+
+    <!-- Add key -->
+    <div class="bg-white rounded-2xl border border-slate-200/60 p-6 shadow-sm">
+      <h3 class="text-[13px] font-semibold text-slate-700 mb-5 flex items-center gap-2.5">
+        <div class="w-7 h-7 rounded-lg bg-brand-50 flex items-center justify-center">
+          <svg class="w-3.5 h-3.5 text-brand-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+        </div>
+        Agregar API Key
+      </h3>
+      <form method="POST" action="/keys/add" class="space-y-4">
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Servicio</label>
+          <select name="service" required class="w-full h-9 px-3 rounded-lg border border-slate-200 text-[13px] text-slate-700 bg-white focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none transition-all">
+            <option value="">Seleccionar...</option>
+            <option value="apollo">Apollo</option>
+            <option value="google_places">Google Places</option>
+            <option value="hunter">Hunter.io</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">API Key</label>
+          <input type="text" name="key_value" required
+                 class="w-full h-9 px-3 rounded-lg border border-slate-200 text-[13px] text-slate-700 terminal-font placeholder-slate-300 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none transition-all"
+                 placeholder="Pegar key aqui..." />
+        </div>
+        <button type="submit" class="w-full h-10 bg-gradient-to-r from-brand-600 to-brand-500 text-white text-[13px] font-semibold rounded-lg shadow-md shadow-brand-500/20 hover:shadow-lg hover:-translate-y-[1px] transition-all duration-200">
+          Agregar key
+        </button>
+      </form>
+    </div>
+
+    <!-- Services info -->
+    <div class="bg-white rounded-2xl border border-slate-200/60 p-6 shadow-sm">
+      <h3 class="text-[13px] font-semibold text-slate-700 mb-4">Info de servicios</h3>
+      <div class="space-y-3">
+        <div class="p-3.5 rounded-xl bg-gradient-to-br from-violet-50 to-violet-100/50 border border-violet-100">
+          <p class="text-[12px] font-semibold text-violet-700 mb-0.5">Apollo.io</p>
+          <p class="text-[11px] text-violet-600/70 leading-relaxed">Free: 50 creditos/mes. Endpoint: organizations/search.</p>
+        </div>
+        <div class="p-3.5 rounded-xl bg-gradient-to-br from-sky-50 to-sky-100/50 border border-sky-100">
+          <p class="text-[12px] font-semibold text-sky-700 mb-0.5">Google Places API</p>
+          <p class="text-[11px] text-sky-600/70 leading-relaxed">$200 credito/mes gratis. ~1000-5000 busquedas.</p>
+        </div>
+        <div class="p-3.5 rounded-xl bg-gradient-to-br from-orange-50 to-orange-100/50 border border-orange-100">
+          <p class="text-[12px] font-semibold text-orange-700 mb-0.5">Hunter.io</p>
+          <p class="text-[11px] text-orange-600/70 leading-relaxed">Free: 25 busquedas/mes. Util como fallback de emails.</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
