@@ -13,6 +13,103 @@
 
 {% block content %}
 
+<!-- ── Guía de inicio ────────────────────────────────────────────── -->
+<div class="bg-white rounded-2xl border border-slate-200/60 shadow-sm mb-7 overflow-hidden">
+
+  <!-- Header con progreso -->
+  <div class="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+    <div>
+      <h2 class="text-[14px] font-bold text-slate-800 flex items-center gap-2.5">
+        <div class="w-7 h-7 rounded-lg bg-brand-50 flex items-center justify-center">
+          <svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+        Plan de accion
+      </h2>
+      <p class="text-[11px] text-slate-400 mt-0.5">Completá estos pasos para tener tu pipeline funcionando</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <div class="text-right">
+        <p class="text-[22px] font-bold text-slate-800 leading-none">{{ progress_pct }}%</p>
+        <p class="text-[11px] text-slate-400 mt-0.5">completado</p>
+      </div>
+      <div class="w-16 h-16 relative">
+        <svg class="w-full h-full -rotate-90" viewBox="0 0 36 36">
+          <circle cx="18" cy="18" r="15" fill="none" stroke="#f1f5f9" stroke-width="3"/>
+          <circle cx="18" cy="18" r="15" fill="none" stroke="#4f46e5" stroke-width="3"
+                  stroke-dasharray="{{ progress_pct * 94 / 100 }} 94"
+                  stroke-linecap="round" class="transition-all duration-700"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pasos -->
+  <div class="divide-y divide-slate-50">
+    {% for step in checklist %}
+    {% set is_next = next_step and next_step.id == step.id %}
+    <div class="px-6 py-4 flex items-start gap-4 {{ 'bg-brand-50/30' if is_next else '' }} transition-colors">
+
+      <!-- Icono de estado -->
+      <div class="mt-0.5 shrink-0">
+        {% if step.done %}
+        <div class="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center shadow-sm shadow-emerald-500/30">
+          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
+        </div>
+        {% elif step.blocked %}
+        <div class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center">
+          <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg>
+        </div>
+        {% elif is_next %}
+        <div class="w-8 h-8 rounded-full bg-brand-500 flex items-center justify-center shadow-md shadow-brand-500/30 animate-pulse">
+          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z"/></svg>
+        </div>
+        {% else %}
+        <div class="w-8 h-8 rounded-full bg-slate-100 border-2 border-slate-200 flex items-center justify-center">
+          <span class="text-[11px] font-bold text-slate-400">{{ loop.index }}</span>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Contenido -->
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 mb-0.5">
+          <p class="text-[13px] font-semibold {{ 'text-slate-400 line-through' if step.done else 'text-slate-800' }}">{{ step.title }}</p>
+          {% if is_next %}
+          <span class="px-2 py-0.5 rounded-full bg-brand-500 text-white text-[10px] font-bold uppercase tracking-wide">HACER AHORA</span>
+          {% elif step.blocked %}
+          <span class="px-2 py-0.5 rounded-full bg-slate-200 text-slate-500 text-[10px] font-semibold uppercase tracking-wide">BLOQUEADO</span>
+          {% endif %}
+        </div>
+        <p class="text-[12px] {{ 'text-emerald-600 font-medium' if step.done else 'text-slate-500' }}">{{ step.desc }}</p>
+        {% if not step.done %}
+        <p class="text-[11px] text-slate-400 mt-0.5">{{ step.target }}</p>
+        {% if not step.blocked %}
+        <div class="mt-2 p-2.5 rounded-lg bg-slate-50 border border-slate-100">
+          <p class="text-[11px] text-slate-600 leading-relaxed">
+            <span class="font-semibold text-slate-700">Como hacerlo:</span> {{ step.how }}
+          </p>
+        </div>
+        {% endif %}
+        {% endif %}
+      </div>
+
+      <!-- Boton de accion -->
+      {% if not step.done and not step.blocked %}
+      <div class="shrink-0 mt-1">
+        <a href="{{ step.action_url }}"
+           class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-[12px] font-semibold transition-all duration-200
+                  {{ 'bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-md shadow-brand-500/25 hover:shadow-lg hover:-translate-y-[1px]' if is_next else 'bg-slate-100 text-slate-600 hover:bg-slate-200' }}">
+          {{ step.action_label }}
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+        </a>
+      </div>
+      {% endif %}
+
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
 <!-- Stat cards -->
 <div class="grid grid-cols-4 gap-5 mb-7">
 

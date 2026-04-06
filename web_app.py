@@ -123,6 +123,62 @@ async def dashboard(request: Request):
     all_leads = get_all_leads(conn)
     recent = all_leads[:10]
 
+    # Checklist / guided setup
+    all_keys = get_keys_status(conn)
+    enrichment_keys = [k for k in all_keys if k.get("service") not in ("apollo", "google_places") and k.get("active")]
+    enrichment_services_configured = len(set(k["service"] for k in enrichment_keys))
+
+    checklist = [
+        {
+            "id": "collect",
+            "done": s["total"] >= 50,
+            "blocked": False,
+            "title": "Recolectar leads",
+            "desc": f"{s['total']} leads en base de datos",
+            "target": "Objetivo: 500+ leads",
+            "action_url": "/jobs",
+            "action_label": "Ir a Jobs",
+            "how": "En Jobs → Collect → elegí Apollo (50 gratis/mes) o Apify para conseguir empresas con website.",
+        },
+        {
+            "id": "keys",
+            "done": enrichment_services_configured >= 3,
+            "blocked": False,
+            "title": "Configurar API keys de enrichment",
+            "desc": f"{enrichment_services_configured} servicios activos de 5 posibles",
+            "target": "Objetivo: Hunter + Skrapp + Snov + Tomba",
+            "action_url": "/keys",
+            "action_label": "Agregar keys",
+            "how": "Registrate en cada servicio con tus cuentas de email. En /keys encontrás las instrucciones paso a paso para cada uno.",
+        },
+        {
+            "id": "enrich",
+            "done": s["pct_email"] >= 40,
+            "blocked": enrichment_services_configured == 0,
+            "title": "Enriquecer emails",
+            "desc": f"{s['pct_email']}% de leads con email ({s['with_email']} de {s['total']})",
+            "target": "Objetivo: 40%+ con email",
+            "action_url": "/jobs",
+            "action_label": "Ejecutar Waterfall",
+            "how": "En Jobs → Enrich → 'Waterfall completo'. El pipeline prueba cada servicio en orden hasta encontrar el email de cada empresa.",
+        },
+        {
+            "id": "export",
+            "done": s["with_email"] >= 50,
+            "blocked": s["with_email"] < 10,
+            "title": "Exportar a Listmonk",
+            "desc": f"{s['with_email']} leads listos para enviar",
+            "target": "Objetivo: 50+ emails para empezar",
+            "action_url": "/export/csv",
+            "action_label": "Descargar CSV",
+            "how": "Descargá el CSV e importalo en Listmonk. Empezá con 20-30 envíos/día mientras calientas las cuentas.",
+        },
+    ]
+
+    # Find first pending step
+    next_step = next((s for s in checklist if not s["done"] and not s["blocked"]), None)
+    progress_pct = int(sum(1 for s in checklist if s["done"]) / len(checklist) * 100)
+
     # Enrichment pipeline stats
     enrichment_stats = {}
     for svc in ["crawl", "hunter", "snov", "skrapp", "tomba", "norbert"]:
@@ -145,7 +201,7 @@ async def dashboard(request: Request):
             enrichment_stats[svc] = {"found": found, "not_found": max(0, searched - found)}
 
     # Keys summary for dashboard
-    keys = get_keys_status(conn)
+    keys = all_keys
     keys_summary = {}
     for k in keys:
         svc = k.get("service", "")
@@ -164,6 +220,9 @@ async def dashboard(request: Request):
             "total_leads": s["total"],
             "enrichment_stats": enrichment_stats,
             "keys_summary": keys_summary,
+            "checklist": checklist,
+            "next_step": next_step,
+            "progress_pct": progress_pct,
         },
     )
 
