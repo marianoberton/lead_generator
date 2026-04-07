@@ -21,8 +21,15 @@ def search_organizations(keywords: list[str], key: str, per_page: int = 25, page
         "per_page": per_page,
         "page": page,
     }
-    resp = requests.post(ORGS_ENDPOINT, json=payload, headers=headers, timeout=30)
-    return resp.status_code, resp.json()
+    try:
+        resp = requests.post(ORGS_ENDPOINT, json=payload, headers=headers, timeout=30)
+        return resp.status_code, resp.json()
+    except requests.exceptions.Timeout:
+        print(f"  [Apollo] Timeout en pagina {page}, abortando")
+        return 0, {}
+    except Exception as e:
+        print(f"  [Apollo] Error de red: {e}")
+        return 0, {}
 
 
 def parse_organization(org: dict) -> dict | None:
@@ -70,6 +77,7 @@ def run(conn, industries: list[str], limit: int, rotator: KeyRotator) -> int:
         target = min(per_industry, cfg["target"])
         collected = 0
         page = 1
+        empty_pages = 0  # consecutive pages with no new leads
 
         print(f"\n  [Apollo] {industry} (target: {target})")
 
@@ -84,6 +92,8 @@ def run(conn, industries: list[str], limit: int, rotator: KeyRotator) -> int:
             remaining = target - collected
             status, data = search_organizations(cfg["keywords"], key, per_page=min(remaining, 25), page=page)
 
+            if status == 0:  # network error / timeout
+                break
             if status == 429:
                 rotator.on_rate_limit(key_id)
                 continue
@@ -98,9 +108,10 @@ def run(conn, industries: list[str], limit: int, rotator: KeyRotator) -> int:
 
             orgs = data.get("organizations") or []
             if not orgs:
-                print(f"  [Apollo] Sin más resultados en página {page}")
+                print(f"  [Apollo] Sin mas resultados en pagina {page}")
                 break
 
+            new_this_page = 0
             for org in orgs:
                 if collected >= target:
                     break
@@ -117,9 +128,19 @@ def run(conn, industries: list[str], limit: int, rotator: KeyRotator) -> int:
                     seen_domains.add(domain)
                     inserted += 1
                     collected += 1
+                    new_this_page += 1
 
             total = data.get("pagination", {}).get("total_entries", 0)
-            print(f"  Pagina {page}: {len(orgs)} orgs (total: {total}) -> +{collected} leads")
+            print(f"  Pagina {page}: {len(orgs)} orgs (total: {total}) -> +{new_this_page} nuevos ({collected} acumulados)")
+
+            if new_this_page == 0:
+                empty_pages += 1
+                if empty_pages >= 3:
+                    print(f"  [Apollo] 3 paginas sin leads nuevos, cambiando industria")
+                    break
+            else:
+                empty_pages = 0
+
             page += 1
 
     return inserted

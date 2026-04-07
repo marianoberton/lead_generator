@@ -10,7 +10,7 @@ MIGRATIONS = [
     "ALTER TABLE api_keys ADD COLUMN requests_month INTEGER DEFAULT 0",
     "ALTER TABLE api_keys ADD COLUMN last_used_at TEXT",
     "ALTER TABLE api_keys ADD COLUMN notes TEXT DEFAULT ''",
-    "ALTER TABLE api_keys ADD COLUMN created_at TEXT DEFAULT (datetime('now'))",
+    "ALTER TABLE api_keys ADD COLUMN created_at TEXT",
     # Leads: enrichment search flags
     "ALTER TABLE leads ADD COLUMN snov_searched INTEGER DEFAULT 0",
     "ALTER TABLE leads ADD COLUMN skrapp_searched INTEGER DEFAULT 0",
