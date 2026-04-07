@@ -1,87 +1,150 @@
 # Plan de Acción — Lead Generation FOMO
+*Actualizado: Abril 2026*
 
-## Fase 1: Setup
-- [ ] Crear estructura: `leads/`, `src/`
-- [ ] `requirements.txt` (requests, beautifulsoup4, httpx, lxml, python-dotenv)
-- [ ] `.env.example` con APOLLO_API_KEY, GOOGLE_PLACES_API_KEY, HUNTER_API_KEY
-- [ ] `config.py` — queries, industrias, constantes, mapeo de dolores
+## Estado general
 
-## Fase 2: Apollo API (`src/step1_apollo.py`)
-- [ ] Endpoint: `POST https://api.apollo.io/api/v1/mixed_people/search`
-- [ ] 3 búsquedas: distribuidoras (15), serv. prof. (15), manufactura (20) = 50 total
-- [ ] Filtros: seniority owner/founder/c_suite/director, email verified, LATAM, 11-200 empleados
-- [ ] Si una búsqueda devuelve menos, redistribuir sobrante a las otras
-- [ ] Extraer: name, email, title, org name/website/employees/industry/city/country/description
-- [ ] Rate limit: 5 req/min
-- [ ] Guardar `leads/leads_apollo.json`
+| Fase | Descripción | Estado |
+|------|-------------|--------|
+| 1 | Infraestructura base (DB, config, CLI) | ✅ Completo |
+| 2 | Recolección de leads (Apollo + Apify) | ✅ Completo |
+| 3 | Crawling de emails desde webs | ✅ Completo |
+| 4 | Enrichment multi-servicio (waterfall) | ✅ Completo |
+| 5 | Web app (FastAPI + dashboard) | ✅ Completo |
+| 6 | Cargar API keys y acumular leads | 🔄 En curso |
+| 7 | Warm-up de cuentas de email | ⏳ Pendiente |
+| 8 | Campañas de cold email (Listmonk) | ⏳ Pendiente |
 
-## Fase 3: Google Places (`src/step2_google.py`)
-- [ ] Queries: salud (12 queries→40 leads), distribución (10→25), serv. prof. (9→25), manufactura (8→20)
-- [ ] Si hay API key: Text Search API. Si no: scraping Google Maps via HTTP
-- [ ] Filtros: tiene website, rating 3.5+, 10+ reviews, no cadenas, no duplica Apollo (por dominio)
-- [ ] Extraer: name, address, phone, website, rating, reviews_count, industry, country
-- [ ] Guardar `leads/leads_google.json`
+---
 
-## Fase 4: Web Crawling (`src/step3_crawl.py`)
-- [ ] SOLO leads de Google Places
-- [ ] Crawlear: homepage + /contacto + /about (max 3 pages por dominio)
-- [ ] Extraer emails (regex), nombres+cargos, descripción empresa
-- [ ] Priorizar: email persona con cargo > email con nombre > contacto@/info@ > descartar soporte/rrhh
-- [ ] Rate limit: 1 req/s, timeout 10s, 1 retry
-- [ ] Guardar `leads/leads_enriched.json`
+## Lo que está listo
 
-## Fase 5: Personalización (`src/step4_personalize.py`)
-- [ ] TODOS los leads (Apollo + Google Places)
-- [ ] Apollo: usar org.short_description + crawl solo homepage
-- [ ] Google Places: usar info del crawling del paso 3
-- [ ] Patrones por prioridad: datos concretos > datos de escala > fallback genérico
-- [ ] Max 15 palabras, basado en datos reales
-- [ ] Guardar `leads/leads_final.json`
+### Infraestructura
+- **`leads.db`** — SQLite con tabla `leads` y `api_keys`, deduplicación por dominio
+- **`src/migrations.py`** — migraciones seguras y repetibles
+- **`src/db.py`** — upsert, stats, enrichment helpers, quota tracking
+- **`src/key_rotator.py`** — rotación con quota mensual automática, desactiva keys agotadas
+- **`config.py`** — industrias, países, queries, límites de servicio
+- **`app.py`** — CLI completa: collect, crawl, enrich, enrich-all, process, status, keys-status, reset-quotas, export
 
-## Fase 6: CSV Listmonk (`src/step5_csv.py`)
-- [ ] Formato: `email,name,attributes` (attributes = JSON string)
-- [ ] Attributes: empresa, cargo, industria, dato, pais, dolor, website, source
-- [ ] Generar `leads/leads_listmonk.csv` + `leads/leads_no_email.csv`
+### Recolección
+- **`src/collector_apollo.py`** — Apollo `organizations/search` (compatible free plan, 50/mes). Circuit breaker en 3 páginas vacías consecutivas. Timeout manejado.
+- **`src/collector_apify.py`** — Google Maps via Apify (`compass~crawler-google-places`). Patrón async: start run → poll → fetch results.
+- **`src/collector_google.py`** — Google Places API directo (requiere API key paga)
+- **`src/crawler_async.py`** — crawling async de webs para extraer emails
 
-## Fase 7: Reporte (`src/step6_report.py`)
-- [ ] Tablas: por fuente, por industria, por país
-- [ ] Email persona vs genérico, personalización real vs fallback
-- [ ] Lista empresas sin email, errores
-- [ ] Guardar `leads/leads_report.md`
+### Enrichment (waterfall)
+Cada servicio procesa solo los leads **sin email** y marca el dominio como buscado para no repetir.
 
-## Fase 8: Dashboard (`src/step7_dashboard.py`)
-- [ ] HTML estático con datos embebidos como JS vars (no fetch)
-- [ ] 4 cards métricas: total con email, sin email, % personalización real, deliverability
-- [ ] Gráfico barras: leads por industria (Apollo vs Google Places) — Chart.js
-- [ ] Gráfico dona: calidad email (verificado, persona, genérico, sin email)
-- [ ] Tabla por país
-- [ ] Tabla interactiva: todos los leads, filtrable, sorteable, búsqueda por texto
-- [ ] Color coding: verde (email persona), amarillo (genérico), rojo (sin email)
-- [ ] Sección leads sin email con links a websites
-- [ ] Responsive, sans-serif, colores suaves
-- [ ] Guardar `leads/dashboard.html`
+| Servicio | Archivo | Free tier | Notas |
+|----------|---------|-----------|-------|
+| Hunter.io | `src/enricher_hunter.py` | 25/mes | Solo API key |
+| Snov.io | `src/enricher_snov.py` | 50/mes | OAuth2: client_id:client_secret |
+| Skrapp.io | `src/enricher_skrapp.py` | 100/mes | Solo API key — mejor free tier |
+| Tomba.io | `src/enricher_tomba.py` | 25/mes | key:secret |
+| VoilaNorbert | `src/enricher_norbert.py` | 50 one-time | Requiere contact_name en el lead |
 
-## Fase 9: Orquestador (`lead_gen.py`)
-- [ ] Ejecuta pasos 1-7 en secuencia
-- [ ] `--step N` para paso individual
-- [ ] Carga .env con python-dotenv
-- [ ] Manejo de errores + retry
+### Web app
+- **`web_app.py`** — FastAPI + Jinja2, puerto 8001 (`PORT=8001 python web_app.py`)
+- **Dashboard `/`** — Plan de acción paso a paso, stats, enrichment pipeline, leads recientes
+- **Leads `/leads`** — tabla filtrable/paginada, edición de campos, eliminación
+- **Jobs `/jobs`** — lanzar collect/crawl/enrich/process con terminal en tiempo real (SSE)
+- **Keys `/keys`** — agregar/habilitar/deshabilitar keys, guías de registro por servicio, quotas
 
-## Orden de desarrollo
-1. `config.py` + estructura → base
-2. `step1_apollo.py` → API limpia, resultados rápido
-3. `step2_google.py` → depende de si hay API key
-4. `step3_crawl.py` → muchos edge cases
-5. `step4_personalize.py` → lógica con datos recolectados
-6. `step5_csv.py` → transformación directa
-7. `step6_report.py` → agregación
-8. `step7_dashboard.py` → HTML con datos embebidos
-9. `lead_gen.py` → orquestador
-10. Test con 1 búsqueda Apollo + 1 query Google antes de correr todo
+---
 
-## Riesgos
-- **Apollo free = 50 leads/mes**: no exceder, redistribuir si da menos
-- **Google bloquea scraping**: fallback manual o usar API key
-- **Webs no responden**: timeout + skip + anotar en reporte
-- **Pocos emails de crawling**: considerar Hunter.io
-- **Duplicados entre fuentes**: deduplicar por dominio del website
+## Capacidad teórica con 12 cuentas por servicio
+
+| Servicio | Por cuenta | × 12 cuentas | Total/mes |
+|----------|------------|--------------|-----------|
+| Skrapp.io | 100 | × 12 | 1,200 |
+| Snov.io | 50 | × 12 | 600 |
+| VoilaNorbert | 50 one-time | × 12 | 600 (único) |
+| Hunter.io | 25 | × 12 | 300 |
+| Tomba.io | 25 | × 12 | 300 |
+| **Total emails/mes** | | | **~3,000** |
+
+---
+
+## Próximos pasos (en orden)
+
+### Paso 1 — Cargar API keys (esta semana)
+Registrarse en cada servicio con cada una de las 10-12 cuentas de email disponibles.
+Cargar en `http://localhost:8001/keys`.
+
+Orden recomendado (mayor volumen primero):
+1. **Skrapp.io** — skrapp.io → Settings → API → copiar token (solo API key)
+2. **Snov.io** — snov.io → Integrations → API → Client ID + Client Secret
+3. **Hunter.io** — hunter.io → Dashboard → API → copiar key (solo API key)
+4. **Tomba.io** — tomba.io → Settings → API Keys → Key + Secret
+5. **Apify** — apify.com → Settings → Integrations → Personal API tokens
+
+### Paso 2 — Acumular leads (semanas 1-2)
+```bash
+# Collect con Apollo (50/mes, ya hay key)
+python app.py collect --source apollo --limit 50
+
+# Collect con Apify (carga keys primero)
+python app.py collect --source apify --industries distribucion manufactura salud --countries mexico colombia argentina chile peru --limit 500
+
+# Crawl webs para emails directos
+python app.py crawl --limit 500 --concurrency 20
+
+# Enriquecer todo con waterfall
+python app.py enrich-all --limit 500
+```
+
+Objetivo: **500+ leads, 200+ con email** antes de arrancar warm-up.
+
+### Paso 3 — Warm-up de cuentas (semanas 2-4)
+- Configurar 2-3 cuentas de email en un servicio de warm-up (Lemwarm, Mailwarm, o Instantly)
+- Empezar con 5-10 emails/día por cuenta, escalar 5/día cada semana
+- Objetivo: 50-100 emails/día por cuenta a las 4 semanas
+- **No enviar cold email hasta completar 2 semanas de warm-up**
+
+### Paso 4 — Primer envío (mes 2)
+- Exportar CSV desde `/export/csv` o `python app.py export`
+- Importar en Listmonk
+- Crear template con variables: `{{ .Attributes.dato }}`, `{{ .Attributes.empresa }}`, etc.
+- Segmentar por industria para personalizar el pain_point
+- Arrancar con 20-30 emails/día, monitorear open rate y bounce rate
+
+### Paso 5 — Escalar (mes 2+)
+- Agregar más cuentas de enrichment según se agoten las quotas
+- Resetear quotas el 1 de cada mes: en `/keys` → "Reset quotas mensuales"
+- Apuntar a 500 emails enviados/mes como primer milestone
+
+---
+
+## Comandos rápidos de referencia
+
+```bash
+# Levantar web app
+PORT=8001 python web_app.py
+
+# Ver estado de la DB
+python app.py status
+
+# Ver estado de las keys
+python app.py keys-status
+
+# Resetear quotas mensuales (hacerlo el 1 de cada mes)
+python app.py reset-quotas
+
+# Exportar CSV para Listmonk
+python app.py export
+
+# Pipeline completo de enriquecimiento
+python app.py enrich-all --limit 500
+```
+
+---
+
+## Riesgos y mitigaciones
+
+| Riesgo | Mitigación |
+|--------|------------|
+| Apollo 50/mes se agota rápido | Usar Apify como fuente principal, Apollo solo para decisores verificados |
+| Servicios de enrichment bloquean IPs | Usar diferentes cuentas con distintos emails, no abusar el rate limit |
+| Emails rebotan (alta bounce rate) | Verificar con NeverBounce antes de enviar en volumen, empezar lento |
+| Warm-up insuficiente → spam | Respetar las 2-4 semanas antes del primer envío en volumen |
+| Quotas agotadas a mitad de mes | Monitorear desde `/keys`, distribuir uso entre servicios |

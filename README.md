@@ -1,182 +1,157 @@
 # FOMO Lead Generation
 
-Pipeline Python para generar ~160 leads de cold email para [FOMO](https://fomologic.com) — agentes IA para empresas medianas en LATAM. Genera el CSV listo para importar a Listmonk.
+Pipeline de generación de leads para [FOMO](https://fomologic.com) — agentes IA para empresas medianas en LATAM. Recolecta empresas, enriquece emails mediante waterfall multi-servicio, y exporta CSV para Listmonk.
 
 ---
 
-## Setup
+## Inicio rápido
 
 ```bash
-# Instalar dependencias
 pip install -r requirements.txt
-
-# Configurar API keys
-cp .env.example .env
-# Editar .env con tus keys
+cp .env.example .env        # agregar APOLLO_API_KEY
+PORT=8001 python web_app.py # abrir http://localhost:8001
 ```
-
-### Variables de entorno
-
-| Variable | Estado | Descripción |
-|---|---|---|
-| `APOLLO_API_KEY` | **Requerida** | Free plan = 50 exports de email/mes |
-| `GOOGLE_PLACES_API_KEY` | Opcional | Si no hay, Step 2 usa Apollo como fallback |
-| `HUNTER_API_KEY` | Opcional | No implementado aún |
 
 ---
 
-## Cómo ejecutar
+## Arquitectura
+
+```
+Fuentes de leads          Enrichment (waterfall)        Salida
+─────────────────         ──────────────────────        ──────
+Apollo API (50/mes)  ─┐
+Apify / Google Maps  ─┤──► SQLite (leads.db) ──► Crawling webs
+                      │                      ──► Hunter.io
+                      │                      ──► Snov.io
+                      │                      ──► Skrapp.io
+                      │                      ──► Tomba.io
+                      └                      ──► VoilaNorbert
+                                                      │
+                                             CSV → Listmonk
+```
+
+Cada servicio de enrichment solo procesa leads **sin email** y no repite dominios ya buscados (waterfall con estado en DB).
+
+---
+
+## Web App
 
 ```bash
-# Pipeline completo (pasos 1-7)
-python lead_gen.py
+PORT=8001 python web_app.py
+```
 
-# Un paso individual
-python lead_gen.py --step 1
-python lead_gen.py --step 2
-# ... hasta --step 7
+| Ruta | Descripción |
+|------|-------------|
+| `/` | Dashboard con plan de acción paso a paso y stats |
+| `/leads` | Tabla filtrable/paginada de todos los leads |
+| `/jobs` | Lanzar collect/crawl/enrich con terminal en tiempo real |
+| `/keys` | Gestionar API keys con guías de registro por servicio |
+| `/export/csv` | Descargar CSV para Listmonk |
+
+---
+
+## CLI
+
+```bash
+# Recolectar empresas
+python app.py collect --source apollo --limit 50
+python app.py collect --source apify --industries distribucion manufactura salud --countries mexico colombia --limit 500
+
+# Crawlear webs para emails
+python app.py crawl --limit 500 --concurrency 20
+
+# Enriquecer (servicio específico o waterfall completo)
+python app.py enrich --source skrapp --limit 200
+python app.py enrich-all --limit 500
+
+# Generar personalización + CSV + reporte + dashboard
+python app.py process
+
+# Ver estado
+python app.py status
+python app.py keys-status
+
+# Resetear quotas mensuales (1 de cada mes)
+python app.py reset-quotas
+
+# Exportar CSV para Listmonk
+python app.py export
 ```
 
 ---
 
-## Pipeline — paso a paso
+## Variables de entorno (`.env`)
 
-```
-[Step 1]          [Step 2]
-Apollo People  →  Google Places / Apollo Orgs
-(50 leads)        (110 leads)
-    │                   │
-    │             [Step 3] Web Crawling
-    │             (solo Step 2, busca emails en webs)
-    │                   │
-    └─────────┬─────────┘
-              ▼
-         [Step 4] Personalización
-         (todos los leads, genera frase 15 palabras)
-              │
-         [Step 5] CSV
-         ┌────┴─────┐
-         ▼           ▼
-  leads_listmonk  leads_no_email
-  (con email)     (sin email)
-              │
-         [Step 6] Reporte Markdown
-         [Step 7] Dashboard HTML
-```
+| Variable | Descripción |
+|----------|-------------|
+| `APOLLO_API_KEY` | Apollo.io — 50 leads/mes gratis |
+| `APOLLO_API_KEY_2..N` | Cuentas adicionales de Apollo |
+| `HUNTER_API_KEY` | Hunter.io — 25 emails/mes gratis |
+| `HUNTER_API_KEY_2..N` | Cuentas adicionales de Hunter |
+| `SKRAPP_API_KEY` | Skrapp.io — 100 emails/mes gratis |
+| `SKRAPP_API_KEY_2..N` | Cuentas adicionales de Skrapp |
+| `SNOV_API_KEY` | Snov.io — `client_id:client_secret` — 50/mes |
+| `TOMBA_API_KEY` | Tomba.io — `key:secret` — 25/mes |
+| `NORBERT_API_KEY` | VoilaNorbert — 50 créditos one-time |
+| `APIFY_API_KEY` | Apify — $5 crédito gratis para Google Maps |
+| `PORT` | Puerto de la web app (default: 8000) |
 
-### Step 1 — Apollo People Search (`src/step1_apollo.py`)
-- **Endpoint:** `POST /api/v1/mixed_people/search`
-- **Filtros:** seniority owner/founder/c_suite/director, empleados 11-200, países LATAM
-- **Distribución:** Distribución 15, Servicios Prof. 15, Manufactura 20 = 50 total
-- **Output:** `leads/leads_apollo.json`
-- Cada lead tiene: `name`, `email`, `title`, `company`, `website`, `employees`, `country`, `company_description`
-
-### Step 2 — Google Places / Apollo Orgs (`src/step2_google.py`)
-- **Con `GOOGLE_PLACES_API_KEY`:** usa Google Places Text Search API → `source: "google_places"`
-- **Sin key:** usa Apollo `organizations/search` como fallback → `source: "apollo_orgs"`
-- **Distribución:** Salud 40, Distribución 25, Servicios Prof. 25, Manufactura 20 = 110 total
-- **Output:** `leads/leads_google.json`
-- Deduplica contra dominios del Step 1
-- Cada lead tiene: `name`, `website`, `phone`, `rating`, `reviews_count`, `country`
-- **No tiene email** — el email se obtiene en Step 3
-
-### Step 3 — Web Crawling (`src/step3_crawl.py`)
-- **Solo** procesa los leads de `leads_google.json` (Step 2)
-- Por cada lead: crawlea homepage + /contacto + /about (máx 3 páginas)
-- Extrae emails con regex, prioriza emails de persona vs genéricos
-- **Rate limit:** 1 req/s, timeout 10s, 1 retry
-- **Output:** `leads/leads_enriched.json`
-- Agrega a cada lead: `best_email`, `email_score`, `contact_name`, `contact_title`, `company_description`
-
-### Step 4 — Personalización (`src/step4_personalize.py`)
-- Procesa **todos** los leads (Apollo + Google/Orgs)
-- Genera una frase de personalización (máx 15 palabras) por prioridad:
-  1. **concrete** — dato específico de la descripción (años, especialidad)
-  2. **scale** — datos de escala (nro empleados, rating + reseñas)
-  3. **fallback** — frase genérica por industria
-- Agrega `pain_point` por industria
-- **Output:** `leads/leads_final.json`
-
-### Step 5 — CSV Listmonk (`src/step5_csv.py`)
-- Lee `leads_final.json`, separa con email / sin email
-- **`leads/leads_listmonk.csv`** — formato `email,name,attributes` listo para importar
-- **`leads/leads_no_email.csv`** — empresas sin email para seguimiento manual
-- El campo `attributes` es un JSON string con: empresa, cargo, industria, dato, pais, dolor, website, source
-
-### Step 6 — Reporte (`src/step6_report.py`)
-- Estadísticas por fuente, industria, país, tipo de email, tipo de personalización
-- Lista de empresas sin email
-- **Output:** `leads/leads_report.md`
-
-### Step 7 — Dashboard (`src/step7_dashboard.py`)
-- HTML estático con datos embebidos (sin servidor, abrir directo en browser)
-- 4 cards métricas, gráfico por industria, gráfico calidad email, tabla por país
-- Tabla interactiva de todos los leads (filtrable, sorteable, búsqueda por texto)
-- Color coding: verde (email persona), amarillo (email genérico), rojo (sin email)
-- **Output:** `leads/dashboard.html`
+Las keys también se pueden cargar desde la web en `/keys` sin editar el `.env`.
 
 ---
 
-## Archivos generados
+## Enrichment waterfall
+
+El pipeline intenta cada servicio en orden y para cuando encuentra email para ese lead:
 
 ```
-leads/
-├── leads_apollo.json      # Step 1: 50 leads con email verificado
-├── leads_google.json      # Step 2: 110 leads sin email (solo empresa + web)
-├── leads_enriched.json    # Step 3: Step 2 + emails encontrados en sus webs
-├── leads_final.json       # Step 4: todos los leads con personalización
-├── leads_listmonk.csv     # Step 5: CSV para importar a Listmonk
-├── leads_no_email.csv     # Step 5: empresas sin email
-├── leads_report.md        # Step 6: reporte de estadísticas
-└── dashboard.html         # Step 7: abrir en browser
+Crawling → Hunter → Snov → Skrapp → Tomba → Norbert
 ```
+
+Cada servicio tiene su columna `{svc}_searched` en la DB para no repetir búsquedas. Para resetear y volver a buscar: borrar el flag en SQLite o usar `reset-quotas`.
 
 ---
 
-## Industrias target
+## Gestión de quotas
 
-| Industria | Apollo | Google/Orgs | Total |
-|---|---|---|---|
-| Distribución | 15 | 25 | 40 |
-| Servicios Profesionales | 15 | 25 | 40 |
-| Manufactura | 20 | 20 | 40 |
-| Salud | — | 40 | 40 |
-| **Total** | **50** | **110** | **160** |
+Con 10-12 cuentas por servicio (registradas con distintos emails):
 
-## Países LATAM
+| Servicio | Free/cuenta | × 12 | Total/mes |
+|----------|-------------|------|-----------|
+| Skrapp.io | 100 | × 12 | 1,200 |
+| Snov.io | 50 | × 12 | 600 |
+| Hunter.io | 25 | × 12 | 300 |
+| Tomba.io | 25 | × 12 | 300 |
+| **Total** | | | **~2,400/mes** |
 
-México, Colombia, Argentina, Chile, Perú, Ecuador, Uruguay, Costa Rica, Panamá, República Dominicana, Guatemala, Bolivia, Paraguay, El Salvador, Honduras.
+El sistema rota automáticamente entre keys y desactiva las que alcanzan su límite mensual. Resetear el 1 de cada mes desde `/keys` → "Reset quotas mensuales".
 
 ---
 
-## Rate limits
+## Flujo recomendado
 
-| Fuente | Límite | Configurado en |
-|---|---|---|
-| Apollo API | 5 req/min (delay 12s) | `config.py → APOLLO_DELAY` |
-| Google Places | 1 req/s | `config.py → GOOGLE_DELAY` |
-| Web crawling | 1 req/s por dominio | `config.py → CRAWL_DELAY` |
-| Timeout crawl | 10s + 1 retry | `config.py → CRAWL_TIMEOUT` |
+1. Registrar 10-12 cuentas por servicio y cargar keys en `/keys`
+2. Collect con Apify (500+ empresas) + Apollo (50 decisores)
+3. Crawl webs para emails directos
+4. `enrich-all` para waterfall completo
+5. Warm-up de cuentas de email (2-4 semanas)
+6. Exportar CSV e importar en Listmonk
+7. Empezar envíos a 20-30/día, escalar progresivamente
 
-**Apollo free plan:** máximo 50 exports de email por mes. No re-ejecutar Step 1 si ya se obtuvieron 50.
+Ver [PLAN.md](PLAN.md) para el plan detallado con fechas y próximos pasos.
 
 ---
 
 ## Troubleshooting
 
-**Apollo devuelve 0 emails:**
-- Verificar que `APOLLO_API_KEY` sea válida
-- El free plan tiene 50 exports/mes — puede estar agotado
-- Ejecutar `python lead_gen.py --step 1` para ver el error
+**Apollo: `+0 leads` en todas las páginas**
+→ Los resultados ya están en la DB (deduplicación por dominio). Normal después de la primera ejecución.
 
-**Step 2 usa Apollo en lugar de Google Places:**
-- Comportamiento esperado cuando `GOOGLE_PLACES_API_KEY` está vacía
-- Los leads tendrán `source: "apollo_orgs"` y serán crawleados en Step 3
+**Enrichment: "Sin keys disponibles"**
+→ No hay keys cargadas para ese servicio. Ir a `/keys` y agregar.
 
-**Step 3 lento:**
-- Normal — crawlea hasta 330 páginas (110 leads × 3 páginas) a 1 req/s ≈ 5-6 min
-- Muchos sitios bloquean scraping → leads quedarán sin email
+**Quota agotada**
+→ El sistema desactiva la key automáticamente. Agregar más cuentas o esperar al 1 del mes.
 
-**Dashboard no carga datos:**
-- Ejecutar Step 4 antes que Step 7
-- Abrir `leads/dashboard.html` directamente en browser (no necesita servidor)
+**Web app: puerto en uso**
+→ Usar `PORT=8001 python web_app.py` (o cualquier puerto libre).
